@@ -10,13 +10,6 @@ byte regbuffer[NUM_REGISTERS];
 // time from last measurement
 unsigned long lastLoop = MEASUREMENT_INTERVAL_S;
 
-int16_t humidity1[N_MEAS] = {0};
-uint16_t humidity1Avg = 0;
-int16_t humidity2[N_MEAS] = {0};
-uint16_t humidity2Avg = 0;
-int16_t waterlevel[N_MEAS] = {0};
-uint16_t waterlevelAvg = 0;
-
 void receiveEvent(int len);
 void sendEvent();
 
@@ -25,9 +18,18 @@ void sendEvent();
  *
  * @param data Data to calculate average
  * @param type Type of average: 0 - all data, 1 - only > -1
+ * @return Average of data
  */
-
 uint16_t calculateAverage(int16_t data[], uint8_t type);
+
+/**
+ * Calculate percentage of value
+ * 
+ * @param value Value to calculate percentage
+ * @param tresholds Tresholds for 100% and 0%
+ * @return Percentage of value
+ */
+uint8_t calculatePercentage(uint16_t value, uint16_t tresholds[]);
 
 
 void setup() {
@@ -44,48 +46,56 @@ void loop() {
   if (millis() - lastLoop > MEASUREMENT_INTERVAL_S * 1000) {
     // Read sensors
     for (uint8_t i = 0; i < N_MEAS; i++) {
-      humidity1[i] = analogRead(HUMIDITY1_PIN);
-      humidity2[i] = analogRead(HUMIDITY2_PIN);
-      waterlevel[i] = analogRead(WATERLEVEL_PIN);
+      humidity1.values[i] = analogRead(HUMIDITY1_PIN);
+      humidity2.values[i] = analogRead(HUMIDITY2_PIN);
+      waterlevel.values[i] = analogRead(WATERLEVEL_PIN);
       delay(10);
     }
 
     // Calculate average from all measurements
-    humidity1Avg = calculateAverage(humidity1, 0);
-    humidity2Avg = calculateAverage(humidity2, 0);
-    waterlevelAvg = calculateAverage(waterlevel, 0);
+    humidity1.average = calculateAverage(humidity1.values, 0);
+    humidity2.average = calculateAverage(humidity2.values, 0);
+    waterlevel.average = calculateAverage(waterlevel.values, 0);
 
     // check if some value is out of range
     // set value to -1 if it is out of range
     for (uint8_t i = 0; i < N_MEAS; i++) {
-      if (humidity1[i] > humidity1Avg * 1.2 ||
-          humidity1[i] < humidity1Avg * 0.8) {
-        humidity1[i] = -1;
-      }
-      
-      if (humidity2[i] > humidity2Avg * 1.2 ||
-          humidity2[i] < humidity2Avg * 0.8) {
-        humidity2[i] = -1;
+      if (humidity1.values[i] > humidity1.average * 1.2 ||
+          humidity1.values[i] < humidity1.average * 0.8) {
+        humidity1.values[i] = -1;
       }
 
-      if (waterlevel[i] > waterlevelAvg * 1.2 ||
-          waterlevel[i] < waterlevelAvg * 0.8) {
-        waterlevel[i] = -1;
+      if (humidity2.values[i] > humidity2.average * 1.2 ||
+          humidity2.values[i] < humidity2.average * 0.8) {
+        humidity2.values[i] = -1;
+      }
+
+      if (waterlevel.values[i] > waterlevel.average * 1.2 ||
+          waterlevel.values[i] < waterlevel.average * 0.8) {
+        waterlevel.values[i] = -1;
       }
     }
 
     // Calculate average again, but do not include out of range values
-    humidity1Avg = calculateAverage(humidity1, 1);
-    humidity2Avg = calculateAverage(humidity2, 1);
-    waterlevelAvg = calculateAverage(waterlevel, 1);
+    humidity1.average = calculateAverage(humidity1.values, 1);
+    humidity2.average = calculateAverage(humidity2.values, 1);
+    waterlevel.average = calculateAverage(waterlevel.values, 1);
 
+    // Calculate percentage of values
+    humidity1.percentage = calculatePercentage(humidity1.average, humidity1.tresholds);
+    humidity2.percentage = calculatePercentage(humidity2.average, humidity2.tresholds);
+    waterlevel.percentage = calculatePercentage(waterlevel.average, waterlevel.tresholds);
+
+    // Print values
     #ifdef DEBUG
-      Serial.print("Humidity1Avg: " + String(humidity1Avg) + ", 0x");
-      Serial.println(humidity1Avg, HEX);
-      Serial.print("Humidity2Avg: " + String(humidity2Avg) + ", 0x");
-      Serial.println(humidity2Avg, HEX);
-      Serial.print("WaterlevelAvg: " + String(waterlevelAvg) + ", 0x");
-      Serial.println(waterlevelAvg, HEX);
+      Serial.println("===== MEASUREMENTS =====");
+      Serial.print("Humidity1Avg:  " + String(humidity1.average)  + ", Percentage: " + String(humidity1.percentage)  + ", 0x");
+      Serial.println(humidity1.percentage, HEX);
+      Serial.print("Humidity2Avg:  " + String(humidity2.average)  + ", Percentage: " + String(humidity2.percentage)  + ", 0x");
+      Serial.println(humidity2.percentage, HEX);
+      Serial.print("WaterlevelAvg: " + String(waterlevel.average) + ", Percentage: " + String(waterlevel.percentage) + ", 0x");
+      Serial.println(waterlevel.percentage, HEX);
+      Serial.println("=========================");
     #endif
     
 
@@ -117,17 +127,16 @@ void receiveEvent(int len) {
 }
 
 void sendEvent() {
-  uint16_t c = 0;
+  uint16_t res = 0;
   delayMicroseconds(20);
   if (reg == HUMIDITY1_REG) {
-    c = humidity1Avg;
+    res = humidity1.percentage;
   } else if (reg == HUMIDITY2_REG) {
-    c = humidity2Avg;
+    res = humidity2.percentage;
   } else if (reg == WATERLEVEL_REG) {
-    c = waterlevelAvg;
+    res = waterlevel.percentage;
   }
-  // c = 0x05;
-  Wire.write(c);
+  Wire.write(res);
 }
 
 uint16_t calculateAverage(int16_t data[], uint8_t type) {
@@ -146,6 +155,19 @@ uint16_t calculateAverage(int16_t data[], uint8_t type) {
   avg /= n_data;
 
   return avg;
+}
+
+uint8_t calculatePercentage(uint16_t value, uint16_t tresholds[]) {
+  float percentage = 0;
+  if (value < tresholds[0]) {
+    percentage = 0;
+  } else if (value > tresholds[1]) {
+    percentage = 100;
+  } else {
+    percentage = float(value - tresholds[0]) / float(1023 - tresholds[0]) * 100; // percentage * 100
+  }
+
+  return uint8_t(percentage);
 }
 
 
