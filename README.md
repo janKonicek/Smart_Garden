@@ -16,12 +16,15 @@ It also have several zigbee clusters:
  - indentify
  - on_off (water valve)
  - analog_output (water level)
- - soil_moisture (modificated cluster with two values)
+ - soil_moisture (modified cluster with two values)
 
 
 ## Zigbee2mqtt
 [garden.js](/Zigbee2mqtt/garden.js) is a converter of this device for Zigbee2mqtt. 
 
+
+## Video
+[Video](https://photos.app.goo.gl/bV1H2QtREhb4gFk89)
 
 ## References
 [mak3r - I2C Arduino Slave](https://github.com/mak3r/i2c-arduino-slave/tree/main)
