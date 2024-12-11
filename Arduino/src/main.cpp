@@ -33,9 +33,11 @@ uint8_t calculatePercentage(uint16_t value, uint16_t tresholds[]);
 
 
 void setup() {
-  Wire.begin(0x50);              // join I2C bus with address #8
+  Wire.begin(DEVICE_ADDRESS);              // join I2C bus with address #8
   Wire.onReceive(receiveEvent);  // register event
   Wire.onRequest(sendEvent);
+
+  pinMode(WATERVALVE_PIN, OUTPUT);
 
 #ifdef DEBUG
   Serial.begin(115200);  // start serial for output
@@ -118,9 +120,14 @@ void receiveEvent(int len) {
       rx %= sizeof(regbuffer);
       regbuffer[rx] =
           Wire.read();  // pull in the latest byte of data and process it
-      if (rx == CONFIG_REG)
+      if (rx == CONFIG_REG) {
         Serial.println("To reg buff CONFIG_REG was written: " +
                        String(regbuffer[CONFIG_REG]));
+      } else if (rx == WATERVALVE_REG) {
+        Serial.println("To reg buff WATERVALVE_REG was written: " +
+                       String(regbuffer[WATERVALVE_REG]));
+        digitalWrite(WATERVALVE_PIN, regbuffer[WATERVALVE_REG]);
+      }
       rx++;
     }
   }
