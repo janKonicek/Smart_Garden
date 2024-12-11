@@ -372,6 +372,94 @@ void readData() {
 
 
 /**
+ * @brief Function for turning ON/OFF the water valve.
+ *
+ * @param[in]   on   Boolean light bulb state.
+ */
+static void on_off_set_value(zb_bool_t on)
+{
+	LOG_INF("Set ON/OFF value: %i", on);
+
+	ZB_ZCL_SET_ATTRIBUTE(
+		GARDEN_ZIGBEE_ENDPOINT_1,
+		ZB_ZCL_CLUSTER_ID_ON_OFF,
+		ZB_ZCL_CLUSTER_SERVER_ROLE,
+		ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID,
+		(zb_uint8_t *)&on,
+		ZB_FALSE);
+	
+	int ret;
+
+	uint8_t state[2] = {WATERVALVE_REG, on};
+	ret = i2c_write_dt(&dev_i2c, state, sizeof(state));
+	if(ret != 0){
+		printk("Failed to write to I2C device address %x at Reg. %x \n", dev_i2c.addr,state[0]);
+		//return -1;
+	}
+}
+
+
+/**
+ * @brief Callback function for handling ZCL commands.
+ *
+ * @param[in]   bufid   Reference to Zigbee stack buffer
+ *                      used to pass received data.
+ */
+static void zcl_device_cb(zb_bufid_t bufid)
+{
+	zb_uint8_t cluster_id;
+	zb_uint8_t attr_id;
+	zb_zcl_device_callback_param_t  *device_cb_param =
+		ZB_BUF_GET_PARAM(bufid, zb_zcl_device_callback_param_t);
+
+	LOG_INF("%s id %hd", __func__, device_cb_param->device_cb_id);
+
+	/* Set default response value. */
+	device_cb_param->status = RET_OK;
+
+	switch (device_cb_param->device_cb_id) {
+	case ZB_ZCL_LEVEL_CONTROL_SET_VALUE_CB_ID:
+		LOG_INF("Level control setting to %d",
+			device_cb_param->cb_param.level_control_set_value_param
+			.new_value);
+		/*level_control_set_value(
+			device_cb_param->cb_param.level_control_set_value_param
+			.new_value);*/
+		break;
+
+	case ZB_ZCL_SET_ATTR_VALUE_CB_ID:
+		cluster_id = device_cb_param->cb_param.
+			     set_attr_value_param.cluster_id;
+		attr_id = device_cb_param->cb_param.
+			  set_attr_value_param.attr_id;
+
+		if (cluster_id == ZB_ZCL_CLUSTER_ID_ON_OFF) {
+			uint8_t value =
+				device_cb_param->cb_param.set_attr_value_param
+				.values.data8;
+
+			LOG_INF("on/off attribute setting to %hd", value);
+			if (attr_id == ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID) {
+				on_off_set_value((zb_bool_t)value);
+			}
+		} else {
+			/* Other clusters can be processed here */
+			LOG_INF("Unhandled cluster attribute id: %d",
+				cluster_id);
+			device_cb_param->status = RET_NOT_IMPLEMENTED;
+		}
+		break;
+
+	default:
+		LOG_ERR("Some error");
+		break;
+	}
+
+	LOG_INF("%s status: %hd", __func__, device_cb_param->status);
+}
+
+
+/**
  * @brief Zigbee stack event handler.
  *
  * @param[in]   bufid   Reference to the Zigbee stack buffer
@@ -427,6 +515,9 @@ int main(void)
 	/* Initialize */
 	configure_gpio();
 	register_factory_reset_button(FACTORY_RESET_BUTTON);
+
+	/* Register callback for handling ZCL commands. */
+	ZB_ZCL_REGISTER_DEVICE_CB(zcl_device_cb);
 
 	/* Register device context (endpoints). */
 	ZB_AF_REGISTER_DEVICE_CTX(&app_template_ctx);
