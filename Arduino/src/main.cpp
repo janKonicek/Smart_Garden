@@ -144,7 +144,7 @@ uint16_t calculateAverage(int16_t data[], uint8_t type) {
   uint16_t n_data = 0;
 
   for (uint8_t i = 0; i < (N_MEAS); i++) {
-    if (type == 1 && data[i] > 0) { // if type == 1, calculate average of data > -1
+    if (type == 1 && data[i] >= 0) { // if type == 1, calculate average of data > -1
       avg += data[i];
       n_data++;
     } else if (type == 0) {   // if type == 0, calculate average of all data
