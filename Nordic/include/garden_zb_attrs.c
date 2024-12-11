@@ -32,7 +32,7 @@ void garden_zb_attrs_init(struct zb_device_ctx *dev_ctx) {
 }
 
 zb_zcl_status_t garden_zb_set_attr_value(zb_uint16_t cluster_id, zb_uint16_t attr_id, void *data) {
-  return zb_zcl_set_attr_val(GARDEN_ZIGBEE_ENDPOINT,
+  return zb_zcl_set_attr_val(GARDEN_ZIGBEE_ENDPOINT_1,
                              cluster_id,
                              ZB_ZCL_CLUSTER_SERVER_ROLE,
                              attr_id,

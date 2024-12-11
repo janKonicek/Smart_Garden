@@ -10,8 +10,14 @@
  */
 
 #include <zephyr/kernel.h>
-#include <zephyr/logging/log.h>
+#include <zephyr/device.h>
+#include <zephyr/devicetree.h>
 #include <dk_buttons_and_leds.h>
+#include <zephyr/logging/log.h>
+#include <zephyr/sys/printk.h>
+
+#include <zephyr/drivers/i2c.h>
+#include "nodes/nodes.h"
 
 #include "garden_zb_attrs.h"
 #include "garden_zb_endpoint_defs.h"
@@ -21,13 +27,29 @@
 #include <addons/zcl/zb_zcl_temp_measurement_addons.h>
 
 #include <zboss_api.h>
+#include <zboss_api_addons.h>
+
 #include <zigbee/zigbee_error_handler.h>
 #include <zigbee/zigbee_app_utils.h>
+
 #include <zb_nrf_platform.h>
+#include <zb_nrf_platform.h>
+
+#include <zcl/zb_zcl_power_config.h>
+
+#include <ram_pwrdn.h>
+
+
+#define I2C_NODE_1 DT_NODELABEL(node1)
+
+static const struct i2c_dt_spec dev_i2c = I2C_DT_SPEC_GET(I2C_NODE_1);
 
 /* Device endpoint, used to receive ZCL commands. */
 #define APP_TEMPLATE_ENDPOINT               11
 
+/* Air quality check period */
+#define READ_DATA_PERIOD_MSEC (1000 * 30)
+#define READ_DATA_START_PERIOD_MSEC (1000 * 5)
 
 /* Version of the application software (1 byte). */
 #define TEMPLATE_INIT_BASIC_APP_VERSION     01
@@ -54,21 +76,7 @@
  */
 #define TEMPLATE_INIT_BASIC_POWER_SOURCE    ZB_ZCL_BASIC_POWER_SOURCE_DC_SOURCE
 
-/* Describes the physical location of the device (16 bytes).
- * May be modified during commissioning process.
- */
-#define TEMPLATE_INIT_BASIC_LOCATION_DESC   "Office desk"
 
-/* Describes the type of physical environment.
- * For possible values see section 3.2.2.2.10 of ZCL specification.
- */
-#define TEMPLATE_INIT_BASIC_PH_ENV          ZB_ZCL_BASIC_ENV_UNSPECIFIED
-
-
-/* Type of power sources available for the device.
- * For possible values see section 3.2.2.2.8 of ZCL specification.
- */
-#define TEMPLATE_INIT_BASIC_POWER_SOURCE    ZB_ZCL_BASIC_POWER_SOURCE_DC_SOURCE
 
 /* LED indicating that device successfully joined Zigbee network. */
 #define ZIGBEE_NETWORK_STATE_LED            DK_LED3
@@ -144,22 +152,8 @@ GARDEN_ZB_DECLARE_CLUSTER_LIST(
 
 GARDEN_ZB_DECLARE_ENDPOINT(
     app_template_ep,
-    GARDEN_ZIGBEE_ENDPOINT,
+    GARDEN_ZIGBEE_ENDPOINT_1,
     app_template_clusters);
-
-/*
-ZB_DECLARE_RANGE_EXTENDER_CLUSTER_LIST(
-	app_template_clusters,
-	basic_attr_list,
-	identify_attr_list);
-
-
-ZB_DECLARE_RANGE_EXTENDER_EP(
-	app_template_ep,
-	APP_TEMPLATE_ENDPOINT,
-	app_template_clusters);
-//*/
-
 
 ZBOSS_DECLARE_DEVICE_CTX_1_EP(
 	app_template_ctx,
@@ -167,13 +161,9 @@ ZBOSS_DECLARE_DEVICE_CTX_1_EP(
 
 
 
-
-
-
-
-
-
-/**@brief Function for initializing all clusters attributes. */
+/**
+ * @brief Function for initializing all clusters attributes. 
+ */
 static void app_clusters_attr_init(void)
 {
 	dev_ctx.basic_attr.zcl_version = ZB_ZCL_VERSION;
@@ -202,7 +192,8 @@ static void app_clusters_attr_init(void)
 		ZB_ZCL_IDENTIFY_IDENTIFY_TIME_DEFAULT_VALUE;
 }
 
-/**@brief Function to toggle the identify LED
+/**
+ * @brief Function to toggle the identify LED
  *
  * @param  bufid  Unused parameter, required by ZBOSS scheduler API.
  */
@@ -214,7 +205,8 @@ static void toggle_identify_led(zb_bufid_t bufid)
 	ZB_SCHEDULE_APP_ALARM(toggle_identify_led, bufid, ZB_MILLISECONDS_TO_BEACON_INTERVAL(100));
 }
 
-/**@brief Function to handle identify notification events on the first endpoint.
+/**
+ * @brief Function to handle identify notification events on the first endpoint.
  *
  * @param  bufid  Unused parameter, required by ZBOSS scheduler API.
  */
@@ -234,7 +226,8 @@ static void identify_cb(zb_bufid_t bufid)
 	}
 }
 
-/**@brief Starts identifying the device.
+/**
+ * @brief Starts identifying the device.
  *
  * @param  bufid  Unused parameter, required by ZBOSS scheduler API.
  */
@@ -268,7 +261,8 @@ static void start_identifying(zb_bufid_t bufid)
 	}
 }
 
-/**@brief Callback for button events.
+/**
+ * @brief Callback for button events.
  *
  * @param[in]   button_state  Bitmask containing buttons state.
  * @param[in]   has_changed   Bitmask containing buttons
@@ -296,7 +290,9 @@ static void button_changed(uint32_t button_state, uint32_t has_changed)
 	check_factory_reset_button(button_state, has_changed);
 }
 
-/**@brief Function for initializing LEDs and Buttons. */
+/**
+ * @brief Function for initializing LEDs and Buttons. 
+ */
 static void configure_gpio(void)
 {
 	int err;
@@ -310,9 +306,73 @@ static void configure_gpio(void)
 	if (err) {
 		LOG_ERR("Cannot init LEDs (err: %d)", err);
 	}
+
+	if (!device_is_ready(dev_i2c.bus)) {
+		LOG_ERR("I2C bus %s is not ready!\n\r",dev_i2c.bus->name);
+	}
 }
 
-/**@brief Zigbee stack event handler.
+
+void readData() {
+
+	int ret;
+	int err = 0;
+
+	uint8_t data_reading[3]= {0};
+	uint8_t sensor_regs[3] = {HUMIDITY1_REG, HUMIDITY2_REG, WATERLEVEL_REG};
+	ret = i2c_write_read_dt(&dev_i2c,&sensor_regs[0],1,&data_reading[0],1);
+	if(ret != 0){
+		printk("Failed to write/read I2C device address %x at Reg. %x \r\n", dev_i2c.addr,sensor_regs[0]);
+	}
+	ret = i2c_write_read_dt(&dev_i2c,&sensor_regs[1],1,&data_reading[1],1);
+	if(ret != 0){
+		printk("Failed to write/read I2C device address %x at Reg. %x \r\n", dev_i2c.addr,sensor_regs[1]);
+	}
+	ret = i2c_write_read_dt(&dev_i2c,&sensor_regs[2],1,&data_reading[2],1);
+	if(ret != 0){
+		printk("Failed to write/read I2C device address %x at Reg. %x \r\n", dev_i2c.addr,sensor_regs[2]);
+	}
+
+	printk("HUM1 = %x, HUM2 = %x, WATER = %x \r\n", data_reading[0], data_reading[1], data_reading[2]);
+
+	zb_zcl_status_t statusHum1 = zb_zcl_set_attr_val(
+			GARDEN_ZIGBEE_ENDPOINT_1, GARDEN_ZB_ZCL_ATTR_SOIL_MOISTURE_CLUSTER_ID,
+			ZB_ZCL_CLUSTER_SERVER_ROLE, GARDEN_ZB_ZCL_ATTR_SOIL_MOISTURE_VALUE_1_ID,
+			(zb_uint8_t *)&data_reading[0], ZB_FALSE);
+		if (statusHum1) {
+			LOG_ERR("Failed to set ZCL attribute: %d", statusHum1);
+			err = statusHum1;
+		}
+
+	zb_zcl_status_t statusHum2 = zb_zcl_set_attr_val(
+			GARDEN_ZIGBEE_ENDPOINT_1, GARDEN_ZB_ZCL_ATTR_SOIL_MOISTURE_CLUSTER_ID,
+			ZB_ZCL_CLUSTER_SERVER_ROLE, GARDEN_ZB_ZCL_ATTR_SOIL_MOISTURE_VALUE_2_ID,
+			(zb_uint8_t *)&data_reading[1], ZB_FALSE);
+		if (statusHum2) {
+			LOG_ERR("Failed to set ZCL attribute: %d", statusHum2);
+			err = statusHum2;
+		}
+
+	zb_zcl_status_t statusWater = zb_zcl_set_attr_val(
+			GARDEN_ZIGBEE_ENDPOINT_1, GARDEN_ZB_ZCL_ATTR_ANALOG_OUTPUT_CLUSTER_ID,
+			ZB_ZCL_CLUSTER_SERVER_ROLE, GARDEN_ZB_ZCL_ATTR_ANALOG_OUTPUT_VALUE_ID,
+			(zb_uint8_t *)&data_reading[2], ZB_FALSE);
+		if (statusWater) {
+			LOG_ERR("Failed to set ZCL attribute: %d", statusWater);
+			err = statusWater;
+		}
+
+	zb_ret_t zb_err = ZB_SCHEDULE_APP_ALARM(
+		readData, 0,
+		ZB_MILLISECONDS_TO_BEACON_INTERVAL(READ_DATA_PERIOD_MSEC));
+	if (zb_err) {
+		LOG_ERR("Failed to schedule app alarm: %d", zb_err);
+	}
+}
+
+
+/**
+ * @brief Zigbee stack event handler.
  *
  * @param[in]   bufid   Reference to the Zigbee stack buffer
  *                      used to pass signal.
@@ -321,6 +381,28 @@ void zboss_signal_handler(zb_bufid_t bufid)
 {
 	/* Update network status LED. */
 	zigbee_led_status_update(bufid, ZIGBEE_NETWORK_STATE_LED);
+	
+	zb_zdo_app_signal_hdr_t *signal_header = NULL;
+	zb_zdo_app_signal_type_t signal = zb_get_app_signal(bufid, &signal_header);
+	zb_ret_t err = RET_OK;
+
+	switch (signal) {
+		case ZB_ZDO_SIGNAL_SKIP_STARTUP:
+			/* ZBOSS framework has started - schedule first air quality check */
+			err = ZB_SCHEDULE_APP_ALARM(
+				readData, 0,
+				ZB_MILLISECONDS_TO_BEACON_INTERVAL(READ_DATA_START_PERIOD_MSEC));
+			if (err) {
+				LOG_ERR("Failed to schedule app alarm: %d", err);
+			}
+			break;
+		case ZB_BDB_SIGNAL_STEERING:
+		case ZB_BDB_SIGNAL_DEVICE_REBOOT:
+			dk_set_led_off(IDENTIFY_LED);
+			break;
+		default:
+			break;
+	}
 
 	/* No application-specific behavior is required.
 	 * Call default signal handler.
@@ -334,6 +416,9 @@ void zboss_signal_handler(zb_bufid_t bufid)
 		zb_buf_free(bufid);
 	}
 }
+
+
+
 
 int main(void)
 {

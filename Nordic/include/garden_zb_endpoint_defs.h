@@ -4,8 +4,8 @@
 #include "garden_zb_soil_moisture_defs.h"
 #include "garden_zb_analog_output_defs.h"
 
-#define GARDEN_ZIGBEE_ENDPOINT 11
-#define GARDEN_BASIC_MANUF_NAME "b-parasite"
+#define GARDEN_ZIGBEE_ENDPOINT_1 11
+#define GARDEN_BASIC_MANUF_NAME "Honza"
 
 #define GARDEN_ZB_DEVICE_ID 0x0008
 #define GARDEN_ZB_DEVICE_VERSION 0

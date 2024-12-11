@@ -3,6 +3,17 @@
  *
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
+
+&i2c0 {
+    
+    node1: node1@50{
+        compatible = "i2c-device";
+        status = "okay";
+        reg = < 0x50 >;
+    };
+};
+
+
 / {
 	chosen {
 		ncs,zigbee-timer = &timer2;
