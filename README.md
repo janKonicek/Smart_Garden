@@ -70,7 +70,9 @@ There is also am aoption to use the default soil_moisture cluster and use some o
 To decode zigbee zigbee2mqtt [[2]](/README.md#references) is used. For decoding this device was created special zigbee2mqtt conveter [garden.js](/Zigbee2mqtt/garden.js). [Here](https://www.zigbee2mqtt.io/advanced/support-new-devices/01_support_new_devices.html) is tutorial how to add it to your zigbee2mqtt instance.
 
 ### MQTT
-MQTT broker Mosquitto[[3]](/README.md#references) is used to get data from zigbee2mqtt.
+MQTT is standard messaging protocol for the Internet of Things (IoT). It is designed as an extremely lightweight publish/subscribe messaging transport that is ideal for connecting remote devices with a small code footprint and minimal network bandwidth. 
+MQTT broker Mosquitto[[3]](/README.md#references) is used to get data from zigbee2mqtt. 
+
 
 ## Video
 [Video](https://photos.app.goo.gl/bV1H2QtREhb4gFk89)
@@ -80,7 +82,7 @@ MQTT broker Mosquitto[[3]](/README.md#references) is used to get data from zigbe
 
 [[2] Zigbee2MQTT](https://www.zigbee2mqtt.io)
 
-[[3] Mosquitto MQTT borker](https://mosquitto.org)
+[[3] Mosquitto MQTT broker](https://mosquitto.org)
 
 [[4] nobodyguy - Zigbee air quality sensor](https://github.com/nobodyguy/zigbee_air_quality_monitor_firmware/)
 
