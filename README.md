@@ -28,6 +28,8 @@ Connection is as follows:
 The measurement period is defined by the parameter `MEASUREMENT_INTERVAL_S` (in seconds). The default setting is 30 seconds. The data is measured ten times (attribute `N_MEAS`), then averaged. If they are higher than `average * 1.2` or lower than `average * 0.8`, they are deleted and the average is recalculated from the cleaned data. The range of these values is specified by the `OUT_OF_RANGE_COEFF` attribute. If the measured value is in a range other than 0-1023, you can define your own range for calculating the percentage. All these attributes can be changed in the [config.cpp](/Arduino/include/config.cpp).
 
 ### I2C
+Every peripheral has unique I2C address from range 0x50 to 0x54. Currently only one peripheral is supported due to issues with multiple zigbee endpoints and server reception.
+
 5 registers were created for communication : 
 
 |  Register name  | Register number | Meaning                     |
@@ -48,10 +50,20 @@ The board is reading data from peripherals every 30 seconds.
 Each peripheral has own zigbee endpoint - numbers 11, 12, ..., 15 with these clusters:
  - basic
  - indentify
- - on_off (water valve)
- - analog_output (water level)
- - soil_moisture (modified cluster with two values)
+ - on_off
+ - analog_output
+ - soil_moisture
 
+#### on_off
+`on_off` cluster is used to control water valve. Only the `onOff` attribute is relevat. It coresponds to the `on_off` cluster defined by ZCL. 
+
+#### analog_output
+`analog_output` cluster is used for water level measurment. Only `presentValue` is relevant. Cluster ID is `0x0055`.
+
+#### soil_moisture
+`soil_moisture` cluster is based on standardized soil_moisture cluster but extended with aditional moisture value. Because of this change, the cluster ID has also been changed to the `0x1459`. Unfortunately, there is no converter for that at the moment.
+
+There is also am aoption to use the default soil_moisture cluster and use some of its attributes for the second moisture sensor e. g. `minValue` attribute.
 
 ## Server
 ### Zigbee2mqtt
