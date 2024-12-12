@@ -3,7 +3,7 @@
 A smart garden device that measures soil moisture, the water level in the bowl and regulates plant watering. The concept is that each flowerpot will have a peripheral device with sensors. The peripherals are connected to the controller via I2C, which also powers them. The control unit uses zigbee to communicate with the server. The whole device is powered by a battery.
 
 A simple sketch of this project.
-![How it works](Docs/images/image.png)
+![How it works](Docs/images/sketch.png)
 
 ## Peripherals
 The peripheral works as I2C slave and measures soil moisture using two analogue sensors, water level (analogue) and can also control water valve (digital output from peripheral). 
@@ -23,6 +23,7 @@ Connection is as follows:
 |       A2        | water level output|  S pin of the sensor           |
 |       D3        | water valve signal| water valve pin  |
 
+Logic voltage converter was used to connect nRF52840 DK and Arduino UNO. 
 
 ### Measuring data
 The measurement period is defined by the parameter `MEASUREMENT_INTERVAL_S` (in seconds). The default setting is 30 seconds. The data is measured ten times (attribute `N_MEAS`), then averaged. If they are higher than `average * 1.2` or lower than `average * 0.8`, they are deleted and the average is recalculated from the cleaned data. The range of these values is specified by the `OUT_OF_RANGE_COEFF` attribute. If the measured value is in a range other than 0-1023, you can define your own range for calculating the percentage. All these attributes can be changed in the [config.cpp](/Arduino/include/config.cpp).
@@ -74,7 +75,9 @@ MQTT is standard messaging protocol for the Internet of Things (IoT). It is desi
 MQTT broker Mosquitto[[3]](/README.md#references) is used to get data from zigbee2mqtt. 
 
 
-## Video
+## Photo and video
+![Some photo](Docs/images/photo.png)
+
 [Video](https://photos.app.goo.gl/bV1H2QtREhb4gFk89)
 
 ## References
